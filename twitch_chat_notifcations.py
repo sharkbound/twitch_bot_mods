@@ -1,5 +1,5 @@
 from threading import Thread
-from queue import Queue
+from queue import Queue, Empty
 
 from twitchbot import Mod, Message, CONFIG_FOLDER, Config
 
@@ -18,16 +18,28 @@ notifier_cfg = Config(
 
 
 class Notifier(Mod):
+    name = 'notifier'
+
     async def loaded(self):
         self.queue = Queue()
         self.thread = Thread(target=self._notification_loop)
         self.toast = ToastNotifier()
+        self.running = True
 
         self.thread.start()
 
+    async def unloaded(self):
+        self.kill_thread()
+
+    def kill_thread(self):
+        self.running = False
+
     def _notification_loop(self):
-        while True:
-            msg: Message = self.queue.get(block=True)
+        while self.running:
+            try:
+                msg: Message = self.queue.get(block=True, timeout=5)
+            except Empty:
+                continue
             self.toast.show_toast(notifier_cfg.title, f'[{msg.channel_name}] {msg.author}: {msg.content}',
                                   duration=notifier_cfg.duration)
 
